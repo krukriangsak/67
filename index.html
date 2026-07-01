@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>ผู้นำเทรนด์ AR 2026 - เวอร์ชัน HTML สแตนด์อโลน</title>
+    <title>ผู้นำเทรนด์ AR 2026 - เวอร์ชัน 3.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -11,7 +11,7 @@
         #container { position: relative; width: 100vw; height: 100vh; }
         #webcam { display: none; }
         #output_canvas { width: 100%; height: 100%; object-fit: cover; }
-        
+
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; display: flex; flex-direction: column; align-items: center;
@@ -31,14 +31,14 @@
 
         .victory-title { color: #00ffcc; font-size: 50px; margin-bottom: 10px; }
         .victory-subtitle { color: #fff; font-size: 24px; margin-bottom: 20px; }
-        
+
         #restart-btn {
             display: inline-block; padding: 20px 40px; background: #00ffcc; color: #000;
             font-size: 28px; font-weight: bold; border-radius: 15px; margin-top: 20px;
             border: 5px solid #fff;
         }
-        
-        /* ไฮไลท์สีปุ่มเมื่อใช้นิ้วชี้ไปแตะโดน */
+
+        /* Highlight for the button when "touching" */
         #restart-btn.active { background: #fff; transform: scale(1.1); }
     </style>
 </head>
@@ -46,12 +46,12 @@
 <div id="container">
     <video id="webcam" autoplay playsinline></video>
     <canvas id="output_canvas"></canvas>
-    
+
     <div id="ui-layer">
         <div id="score-board">คะแนนปัจจุบัน: <span id="score">0</span> / 100</div>
     </div>
 
-    <div id="victory-panel">
+    <div id="victory-panel" id="victory">
         <div class="victory-title">ยินดีด้วย! 👑</div>
         <div class="victory-subtitle">คุณคือผู้นำเทรนด์<br>20 + 20 + 20 + 7</div>
         <p style="font-size: 40px;">🔥 ✨ ⚡ 🚀</p>
@@ -71,7 +71,7 @@
     let currentQuadrant = null;
     let isGameOver = false;
 
-    // --- AUDIO SYSTEM (Web Audio API) ---
+    // --- AUDIO SYSTEM ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function playBeep(freq, duration, type = 'sine') {
@@ -88,7 +88,7 @@
     }
 
     function playVictoryTune() {
-        const notes = [523.25, 659.25, 783.99, 1046.50]; // คอร์ด C-E-G-C ไล่เสียงขึ้น
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C-E-G-C
         notes.forEach((f, i) => {
             setTimeout(() => playBeep(f, 0.5, 'square'), i * 150);
         });
@@ -100,14 +100,14 @@
         victoryPanel.style.display = 'none';
         currentQuadrant = null;
         isGameOver = false;
-        playBeep(440, 0.2); // เสียงบี๊บแจ้งเตือนเมื่อกดเริ่มใหม่
+        playBeep(440, 0.2);
     }
 
     function onResults(results) {
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        
-        // กลับหน้ากล้อง (Mirror Effect) เพื่อให้เคลื่อนไหวมือได้เป็นธรรมชาติ
+
+        // Mirror Effect
         canvasCtx.translate(canvasElement.width, 0);
         canvasCtx.scale(-1, 1);
         canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
@@ -115,13 +115,13 @@
         if (results.multiHandLandmarks && results.multiHandedness) {
             for (let i = 0; i < results.multiHandLandmarks.length; i++) {
                 const landmarks = results.multiHandLandmarks[i];
-                const handedness = results.multiHandedness[i].label; 
-                
-                // วาดเส้นโครงสร้างมือและจุดข้อต่อ
+                const handedness = results.multiHandedness[i].label; // Left/Right (Mirrored)
+
+                // Draw Skeleton
                 drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#ffffff', lineWidth: 4});
                 drawLandmarks(canvasCtx, landmarks, {color: '#00ffcc', lineWidth: 1, radius: 5});
 
-                // คำนวณการหงายมือ/คว่ำมือ (Vector Cross Product)
+                // Palm orientation math
                 const v1 = { x: landmarks[5].x - landmarks[0].x, y: landmarks[5].y - landmarks[0].y };
                 const v2 = { x: landmarks[17].x - landmarks[0].x, y: landmarks[17].y - landmarks[0].y };
                 const crossZ = v1.x * v2.y - v1.y * v2.x;
@@ -132,7 +132,7 @@
                 const drawX = (1 - wrist.x) * canvasElement.width;
                 const drawY = wrist.y * canvasElement.height;
 
-                // --- LOGIC ปุ่มกดเริ่มใหม่ไร้สัมผัส (ใช้นิ้วชี้แตะกลางอากาศ) ---
+                // --- RESTART LOGIC (INDEX FINGER TOUCH) ---
                 if (isGameOver) {
                     const btnRect = restartBtn.getBoundingClientRect();
                     const fingerX = (1 - indexTip.x) * window.innerWidth;
@@ -141,30 +141,31 @@
                     if (fingerX > btnRect.left && fingerX < btnRect.right && 
                         fingerY > btnRect.top && fingerY < btnRect.bottom) {
                         restartBtn.classList.add('active');
-                        setTimeout(resetGame, 500); // หน่วงเวลา 0.5 วินาทีเพื่อให้รู้สึกเหมือนการกดปุ่ม
+                        // Reset after small delay to feel like a click
+                        setTimeout(resetGame, 500);
                     } else {
                         restartBtn.classList.remove('active');
                     }
                 }
 
-                // --- LOGIC การนับคะแนนแบบแบ่งโซน 4 ทิศทาง (Spatial Quadrant) ---
+                // --- SCORING LOGIC ---
                 if (!isGameOver && isPalmFacing) {
                     let quad = (wrist.x < 0.5 ? "L" : "R") + (wrist.y < 0.5 ? "T" : "B");
-                    
+
                     if (quad !== currentQuadrant) {
                         score++;
                         currentQuadrant = quad;
                         scoreElement.innerText = score;
-                        playBeep(handedness === 'Left' ? 880 : 1100, 0.1); // เสียงปิ๊บตอนแต้มขึ้น
-                        
+                        playBeep(handedness === 'Left' ? 880 : 1100, 0.1); // Beep sound
+
                         if (score >= 100) {
                             isGameOver = true;
                             victoryPanel.style.display = 'block';
-                            playVictoryTune(); // เล่นเพลงฉลองชัยชนะ
+                            playVictoryTune();
                         }
                     }
 
-                    // วาดเฉพาะตัวเลขขนาดใหญ่ลอยบนมือ (ไม่แสดงข้อความอื่นบนมือ)
+                    // Display huge numbers (ONLY numbers as requested)
                     canvasCtx.restore();
                     canvasCtx.save();
                     canvasCtx.font = "bold 250px 'Segoe UI'";
@@ -183,19 +184,16 @@
         canvasCtx.restore();
     }
 
-    // กำหนดค่าและเรียกใช้งาน MediaPipe Hands
     const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
     hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
     hands.onResults(onResults);
 
-    // เปิดใช้งานกล้องเว็บแคม
     const camera = new Camera(videoElement, {
         onFrame: async () => { await hands.send({image: videoElement}); },
         width: 1280, height: 720
     });
     camera.start();
 
-    // จัดการขนาดหน้าจอให้เต็มจอตลอดเวลา
     function resize() {
         canvasElement.width = window.innerWidth;
         canvasElement.height = window.innerHeight;
